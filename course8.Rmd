@@ -1,0 +1,103 @@
+---
+title: "Practical Machine Learning Project"
+author: "Nikitha Mohan"
+date: "11/19/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+#Overview
+We have data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants who lifted them correctly and incorrectly. We want to find a way to use this data to predict the manner in which they did the exercise and predict 20 different test cases.
+         
+#Load in Libraries to be used
+```{r}
+library(caret)
+library(rattle)
+```
+    
+#Loading the data 
+Training Data:
+```{r}
+TrainData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+```
+Test Data:    
+```{r}
+TestData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+```
+
+```{r}
+str(TestData)
+```
+Dimensions of Training Data
+```{r}
+dim(TrainData)
+```
+Dimentions of Test Data
+```{r}
+dim(TestData)
+```
+We can see that the training data has 19622 observations on 160 columns and some of those column have NAs and blank values. We need to remove them because they wont produce any information. In addition the first seven columns have information about people who did the test and also had the timestamps, we do not need these.
+        
+#Removing Unnecessary Data
+In this step, we will clean the data and get rid of observations with missing values as well as some meaningless variables.
+```{r, cache = T}
+sum(complete.cases(TrainData))
+```
+First, we remove columns that contain NA missing values.
+```{r, cache = T}
+TrainData <- TrainData[, colSums(is.na(TrainData)) == 0] 
+TestData <- TestData[, colSums(is.na(TestData)) == 0] 
+```  
+Next, we get rid of some columns that do not contribute much to the accelerometer measurements.
+```{r, cache = T}
+classe <- TrainData$classe
+trainRemove <- grepl("^X|timestamp|window", names(TrainData))
+TrainData <- TrainData[, !trainRemove]
+TrainClean <- TrainData[, sapply(TrainData, is.numeric)]
+TrainClean$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(TestData))
+TestData <- TestData[, !testRemove]
+TestClean <- TestData[, sapply(TestData, is.numeric)]
+```
+Dimensions of cleaned Trained Data 
+```{r}
+dim(TrainClean)
+```
+Dimensions of cleaned Test Data
+```{r}
+dim(TestClean)
+```
+Now, the cleaned training data set contains 19622 observations and 53 variables, while the testing data set contains 20 observations and 53 variables. The "classe" variable is still in the cleaned training set.
+After cleaning the data there is only 53 columns that have data present     
+       
+#Splitting up data for Machine learning
+We want to split the data into 80% training data to 20% test data 
+```{r, cache = T}
+set.seed(15697) 
+inTrain <- createDataPartition(TrainClean$classe, p=0.80, list=F)
+TrainData <- TrainClean[inTrain, ]
+TestData <- TrainClean[-inTrain, ]
+```
+       
+#Machine Learning Method: Random Forest
+```{r, cache = T}
+set.seed(15697)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRandForest <- train(classe ~ ., data=TrainData, method="rf",
+                          trControl=controlRF)
+modFitRandForest$finalModel
+```
+
+```{r, cache = T}
+# prediction on Test dataset
+predictRandForest <- predict(modFitRandForest, newdata=TestData)
+confMatRandForest <- confusionMatrix(predictRandForest, TestData$classe)
+confMatRandForest
+```
+
+```{r, cache = T}
+# plot matrix results
+plot(confMatRandForest$table, col = confMatRandForest$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  round(confMatRandForest$overall['Accuracy'], 4)))
+```
